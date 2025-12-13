@@ -3,97 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dual Iframe View</title>
+    <title>Dual Iframe</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        html, body {
-            height: 100%;
-            overflow: hidden;
-        }
-        .container {
-            display: flex;
-            height: 100%;
-            width: 100%;
-        }
-        .frame-wrapper {
-            height: 100%;
-            overflow: hidden;
-        }
-        .left {
-            width: 50%;
-        }
-        .right {
-            flex: 1;
-        }
-        iframe {
-            width: 100%;
-            height: 100%;
-            border: none;
-        }
-        .divider {
-            width: 6px;
-            background: #333;
-            cursor: col-resize;
-            transition: background 0.2s;
-        }
-        .divider:hover {
-            background: #555;
-        }
-        .divider.dragging {
-            background: #0066cc;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; font-family: system-ui; }
+        .container { display: flex; height: 100%; }
+        .panel { height: 100%; display: flex; flex-direction: column; }
+        .left { width: 50%; }
+        .right { flex: 1; }
+        .url-bar { display: flex; padding: 6px; background: #f5f5f5; border-bottom: 1px solid #ddd; gap: 6px; }
+        .url-bar input { flex: 1; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; }
+        .url-bar button { padding: 6px 12px; background: #0066cc; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        iframe { flex: 1; width: 100%; border: none; }
+        .divider { width: 6px; background: #333; cursor: col-resize; }
+        .divider:hover, .divider.dragging { background: #0066cc; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="frame-wrapper left" id="left-panel">
-            <iframe src="http://127.0.0.1:8080/files/" title="Files" id="left-iframe"></iframe>
+        <div class="panel left" id="left">
+            <div class="url-bar">
+                <input type="text" id="left-url" onkeypress="if(event.key==='Enter')load('left')" />
+                <button onclick="load('left')">Go</button>
+            </div>
+            <iframe id="left-frame"></iframe>
         </div>
         <div class="divider" id="divider"></div>
-        <div class="frame-wrapper right">
-            <iframe src="http://168.119.202.184:5173/" title="App" id="right-iframe"></iframe>
+        <div class="panel right">
+            <div class="url-bar">
+                <input type="text" id="right-url" onkeypress="if(event.key==='Enter')load('right')" />
+                <button onclick="load('right')">Go</button>
+            </div>
+            <iframe id="right-frame"></iframe>
         </div>
     </div>
-
     <script>
-        const divider = document.getElementById('divider');
-        const leftPanel = document.getElementById('left-panel');
-        const leftIframe = document.getElementById('left-iframe');
-        const rightIframe = document.getElementById('right-iframe');
+        const $ = id => document.getElementById(id);
+        const config = JSON.parse(localStorage.getItem('dual-iframe') || '{}');
+        let dragging = false;
 
-        let isDragging = false;
+        function load(side) {
+            $(side + '-frame').src = $(side + '-url').value;
+            save();
+        }
 
-        divider.addEventListener('mousedown', (e) => {
-            isDragging = true;
-            divider.classList.add('dragging');
-            // Disable pointer events on iframes while dragging
-            leftIframe.style.pointerEvents = 'none';
-            rightIframe.style.pointerEvents = 'none';
-        });
+        function save() {
+            localStorage.setItem('dual-iframe', JSON.stringify({
+                left: $('left-url').value,
+                right: $('right-url').value,
+                width: parseFloat($('left').style.width) || 50
+            }));
+        }
 
-        document.addEventListener('mousemove', (e) => {
-            if (!isDragging) return;
+        // Init
+        $('left-url').value = config.left || 'http://127.0.0.1:8080/files/';
+        $('right-url').value = config.right || 'http://168.119.202.184:5173/';
+        if (config.width) $('left').style.width = config.width + '%';
+        load('left'); load('right');
 
-            const containerWidth = document.querySelector('.container').offsetWidth;
-            const newWidth = (e.clientX / containerWidth) * 100;
-
-            // Limit between 10% and 90%
-            if (newWidth >= 10 && newWidth <= 90) {
-                leftPanel.style.width = newWidth + '%';
-            }
-        });
-
-        document.addEventListener('mouseup', () => {
-            isDragging = false;
-            divider.classList.remove('dragging');
-            // Re-enable pointer events on iframes
-            leftIframe.style.pointerEvents = 'auto';
-            rightIframe.style.pointerEvents = 'auto';
-        });
+        // Divider drag
+        $('divider').onmousedown = () => {
+            dragging = true;
+            $('divider').classList.add('dragging');
+            $('left-frame').style.pointerEvents = $('right-frame').style.pointerEvents = 'none';
+        };
+        document.onmousemove = e => {
+            if (!dragging) return;
+            const w = (e.clientX / window.innerWidth) * 100;
+            if (w >= 10 && w <= 90) $('left').style.width = w + '%';
+        };
+        document.onmouseup = () => {
+            if (dragging) { dragging = false; $('divider').classList.remove('dragging'); save(); }
+            $('left-frame').style.pointerEvents = $('right-frame').style.pointerEvents = 'auto';
+        };
     </script>
 </body>
 </html>
